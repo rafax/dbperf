@@ -1,12 +1,22 @@
 package com.gajdulewicz
 
 import com.gajdulewicz.Models.Profile
+import com.mongodb.WriteConcern
+import com.mongodb.casbah.commons.MongoDBObject
 
-class MongoWriter(connectionString: String = "localhost:27017", dbName: String = "perftest", bufferSize: Int = 100000) {
+class MongoWriter(connectionString: String = "localhost:27017", dbName: String = "perftest", bufferSize: Int = 100000, writeConcenrn: WriteConcern = WriteConcern.ACKNOWLEDGED) {
+
+  implicit def profileConverter(prof: Profile) = {
+    MongoDBObject("_id" -> prof.id, "brandId" -> prof.brandId,
+      "emailProfile" -> prof.emailProfile.map(e => MongoDBObject("_id" -> e.email, "email" -> e.email, "passwordHash" -> e.passwordHash)),
+      "fbProfile" -> prof.fbProfile.map(f => MongoDBObject("_id" -> f.id, "token" -> f.token)),
+      "twitterProfile" -> prof.twitterProfile.map(t => MongoDBObject("_id" -> t.id, "token" -> t.token)))
+  }
 
   import com.mongodb.casbah.Imports._
 
   val profiles = MongoClient(connectionString)(dbName)("profiles")
+  profiles.setWriteConcern(writeConcenrn)
   profiles.drop()
   var flushed = 0
   var pending = 0
@@ -14,11 +24,11 @@ class MongoWriter(connectionString: String = "localhost:27017", dbName: String =
   var start = System.nanoTime
 
   def scheduleForInsert(obj: Profile) {
-    writes += obj.toMongoObject
+    writes += profileConverter(obj)
     pending += 1
     if (pending == bufferSize) {
       time("Mongo write took") {
-        profiles.insert(writes: _*)
+        profiles.insert(writes :_*)
       }
       writes.clear()
       flushed += pending
