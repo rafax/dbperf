@@ -4,7 +4,7 @@ import com.gajdulewicz.Models.Profile
 import com.mongodb.WriteConcern
 import com.mongodb.casbah.commons.MongoDBObject
 
-class MongoWriter(connectionString: String = "localhost:27017", dbName: String = "perftest", bufferSize: Int = 100000, writeConcenrn: WriteConcern = WriteConcern.ACKNOWLEDGED) {
+class MongoWriter(connectionString: String = "localhost:27017", dbName: String = "perftest", bufferSize: Int = 100000, writeConcenrn: WriteConcern = WriteConcern.ACKNOWLEDGED, verbose: Boolean = false) {
 
   implicit def profileConverter(prof: Profile) = {
     MongoDBObject("_id" -> prof.id, "brandId" -> prof.brandId,
@@ -27,13 +27,17 @@ class MongoWriter(connectionString: String = "localhost:27017", dbName: String =
     writes += profileConverter(obj)
     pending += 1
     if (pending == bufferSize) {
-      time("Mongo write took") {
+      if(verbose)
+        time("Mongo write took") {
+          profiles.insert(writes :_*)
+        }
+      else
         profiles.insert(writes :_*)
-      }
       writes.clear()
       flushed += pending
       pending = 0
-      println("Flushed " + flushed + " in " + (System.nanoTime - start) / 1000 / 1000)
+      if(verbose)
+        println("Flushed " + flushed + " in " + (System.nanoTime - start) / 1000 / 1000)
       start = System.nanoTime
       if (flushed % (bufferSize * 10) == 0) {
         System.gc()
